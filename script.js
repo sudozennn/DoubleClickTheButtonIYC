@@ -1,366 +1,215 @@
-/* ===== Global Styles ===== */
-* {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-}
+// ===== Game State =====
+let attempts = 0;
+let wins = 0;
+let bestTime = Infinity;
+let clickCount = 0;
+let firstClickTime = 0;
+let isRunningAway = false;
+let moveInterval = null;
 
-body {
-    min-height: 100vh;
-    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
-    color: #fff;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    padding: 20px;
-    position: relative;
-    overflow-x: hidden;
-}
+// DOM Elements
+const targetButton = document.getElementById('targetButton');
+const attemptsEl = document.getElementById('attempts');
+const winsEl = document.getElementById('wins');
+const bestTimeEl = document.getElementById('bestTime');
+const messageEl = document.getElementById('message');
+const winModal = document.getElementById('winModal');
+const playAgainBtn = document.getElementById('playAgain');
+const clueBtn = document.getElementById('clueBtn');
+const clueModal = document.getElementById('clueModal');
+const closeModalBtn = document.getElementById('closeModal');
+const secretHint = document.getElementById('secretHint');
+const secretText = document.getElementById('secretText');
+const gameArea = document.getElementById('gameArea');
 
-/* Background Animation */
-body::before {
-    content: '';
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: radial-gradient(circle at 20% 50%, rgba(99, 102, 241, 0.1) 0%, transparent 50%),
-                radial-gradient(circle at 80% 80%, rgba(236, 72, 153, 0.08) 0%, transparent 50%);
-    pointer-events: none;
-    z-index: -1;
-}
+const DOUBLE_CLICK_DELAY = 400; // ms
+const SECRET_UNLOCK_ATTEMPTS = 50000;
 
-/* ===== Clue Button ===== */
-#clueBtn {
-    position: fixed;
-    top: 20px;
-    right: 20px;
-    width: 45px;
-    height: 45px;
-    border-radius: 50%;
-    border: none;
-    background: linear-gradient(145deg, #6366f1, #4f46e5);
-    color: white;
-    font-size: 22px;
-    font-weight: bold;
-    cursor: pointer;
-    box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4);
-    transition: all 0.3s ease;
-    z-index: 100;
-}
+// ===== Initialize =====
+updateStatsDisplay();
 
-#clueBtn:hover {
-    transform: scale(1.1) rotate(15deg);
-    box-shadow: 0 6px 20px rgba(99, 102, 241, 0.6);
-}
+// ===== Target Button Logic =====
+targetButton.addEventListener('click', (e) => {
+    e.preventDefault();
+    attempts++;
+    updateStatsDisplay();
 
-/* ===== Main Content ===== */
-main {
-    text-align: center;
-    max-width: 600px;
-    width: 100%;
-    margin-top: 60px;
-    animation: fadeIn 0.8s ease-out;
-}
+    const now = Date.now();
 
-@keyframes fadeIn {
-    from { opacity: 0; transform: translateY(20px); }
-    to { opacity: 1; transform: translateY(0); }
-}
-
-#gameTitle {
-    font-size: clamp(1.8rem, 5vw, 2.8rem);
-    margin-bottom: 10px;
-    background: linear-gradient(90deg, #fff, #a5b4fc);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-}
-
-#doubleWord {
-    color: #ec4899;
-    -webkit-text-fill-color: #ec4899;
-    text-shadow: 0 0 20px rgba(236, 72, 153, 0.4);
-}
-
-.subtitle {
-    color: #94a3b8;
-    font-size: 1.1rem;
-    margin-bottom: 35px;
-}
-
-/* ===== Stats Section ===== */
-.stats {
-    display: flex;
-    justify-content: center;
-    gap: clamp(15px, 5vw, 40px);
-    margin-bottom: 40px;
-    flex-wrap: wrap;
-}
-
-.stat {
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 16px;
-    padding: 18px 25px;
-    min-width: 110px;
-    backdrop-filter: blur(10px);
-    transition: transform 0.3s ease, box-shadow 0.3s ease;
-}
-
-.stat:hover {
-    transform: translateY(-5px);
-    box-shadow: 0 10px 30px rgba(99, 102, 241, 0.15);
-}
-
-.stat .label {
-    display: block;
-    font-size: 0.85rem;
-    color: #94a3b8;
-    margin-bottom: 8px;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-}
-
-.stat span:last-child {
-    font-size: 1.8rem;
-    font-weight: bold;
-    color: #f8fafc;
-}
-
-/* ===== Game Area ===== */
-#gameArea {
-    position: relative;
-    min-height: 280px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border: 2px dashed rgba(99, 102, 241, 0.3);
-    border-radius: 20px;
-    background: rgba(99, 102, 241, 0.03);
-    margin-bottom: 25px;
-    overflow: hidden;
-    transition: border-color 0.3s ease;
-}
-
-#gameArea:hover {
-    border-color: rgba(99, 102, 241, 0.5);
-}
-
-/* ===== Target Button ===== */
-#targetButton {
-    padding: 22px 35px;
-    font-size: 1.1rem;
-    font-weight: bold;
-    border: none;
-    border-radius: 14px;
-    background: linear-gradient(135deg, #6366f1, #8b5cf6);
-    color: white;
-    cursor: pointer;
-    position: relative;
-    transition: all 0.15s ease;
-    box-shadow: 0 6px 25px rgba(99, 102, 241, 0.4);
-    user-select: none;
-    touch-action: manipulation;
-    white-space: nowrap;
-}
-
-#targetButton:hover {
-    transform: scale(1.05);
-    box-shadow: 0 8px 30px rgba(99, 102, 241, 0.5);
-}
-
-#targetButton:active {
-    transform: scale(0.97);
-}
-
-#targetButton.running-away {
-    transition: left 0.12s cubic-bezier(0.4, 0, 0.2, 1), 
-                top 0.12s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-/* Pulse Animation */
-@keyframes pulse {
-    0% { box-shadow: 0 6px 25px rgba(99, 102, 241, 0.4); }
-    50% { box-shadow: 0 6px 35px rgba(236, 72, 153, 0.5); }
-    100% { box-shadow: 0 6px 25px rgba(99, 102, 241, 0.4); }
-}
-
-#targetButton:not(.escaping) {
-    animation: pulse 2s infinite;
-}
-
-/* ===== Message ===== */
-#message {
-    font-size: 1.1rem;
-    color: #cbd5e1;
-    min-height: 40px;
-    transition: all 0.3s ease;
-}
-
-#message.success {
-    color: #4ade80;
-    font-weight: bold;
-    animation: popIn 0.4s ease;
-}
-
-#message.fail {
-    color: #f87171;
-    animation: shake 0.5s ease;
-}
-
-@keyframes popIn {
-    0% { transform: scale(0.8); opacity: 0; }
-    100% { transform: scale(1); opacity: 1; }
-}
-
-@keyframes shake {
-    0%, 100% { transform: translateX(0); }
-    20% { transform: translateX(-8px); }
-    40% { transform: translateX(8px); }
-    60% { transform: translateX(-6px); }
-    80% { transform: translateX(6px); }
-}
-
-/* ===== Modals ===== */
-.hidden {
-    display: none !important;
-}
-
-.modal {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(15, 23, 42, 0.85);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 200;
-    animation: fadeIn 0.3s ease;
-}
-
-.modal-content {
-    background: linear-gradient(145deg, #1e293b, #0f172a);
-    border: 1px solid rgba(99, 102, 241, 0.3);
-    border-radius: 20px;
-    padding: 35px 30px;
-    text-align: center;
-    max-width: 400px;
-    width: 90%;
-    position: relative;
-    animation: scaleIn 0.4s ease;
-    box-shadow: 0 25px 60px rgba(0, 0, 0, 0.5);
-}
-
-@keyframes scaleIn {
-    0% { transform: scale(0.8); opacity: 0; }
-    100% { transform: scale(1); opacity: 1; }
-}
-
-.modal-content h2 {
-    font-size: 1.6rem;
-    margin-bottom: 20px;
-}
-
-.modal-content p {
-    color: #cbd5e1;
-    margin-bottom: 25px;
-    line-height: 1.6;
-}
-
-.modal-content button {
-    padding: 12px 30px;
-    font-size: 1rem;
-    border-radius: 10px;
-    border: none;
-    background: linear-gradient(135deg, #6366f1, #ec4899);
-    color: white;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    font-weight: 600;
-}
-
-.modal-content button:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 20px rgba(99, 102, 241, 0.3);
-}
-
-#closeModal {
-    position: absolute;
-    top: 12px;
-    right: 15px;
-    background: transparent !important;
-    color: #94a3b8 !important;
-    font-size: 1.5rem;
-    padding: 0 !important;
-    width: 30px;
-    height: 30px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-#closeModal:hover {
-    color: #fff !important;
-    transform: rotate(90deg);
-}
-
-hr {
-    border: none;
-    border-top: 1px solid rgba(255, 255, 255, 0.1);
-    margin: 20px 0;
-}
-
-h3 {
-    color: #facc15;
-    margin-bottom: 10px;
-}
-
-/* ===== Responsive / Mobile ===== */
-@media (max-width: 480px) {
-    body {
-        padding: 15px;
+    if (clickCount === 0) {
+        // First click
+        clickCount = 1;
+        firstClickTime = now;
+        messageEl.textContent = 'Click again quickly! 👆';
+        messageEl.className = '';
+        
+        // Start moving away after first click!
+        startMovingAway();
+        
+    } else {
+        // Second click
+        const timeDiff = now - firstClickTime;
+        if (timeDiff <= DOUBLE_CLICK_DELAY) {
+            // 🎉 SUCCESS!
+            handleWin(timeDiff);
+        } else {
+            // Too slow
+            messageEl.textContent = 'Too slow! Try again 😅';
+            messageEl.className = 'fail';
+        }
+        resetClicks();
     }
 
-    main {
-        margin-top: 50px;
+    // Unlock secret hint at 50,000 attempts
+    if (attempts >= SECRET_UNLOCK_ATTEMPTS && secretHint.classList.contains('hidden')) {
+        secretHint.classList.remove('hidden');
+        secretText.textContent = "Just kidding! 😉 You don't actually need 50,000 attempts. Watch carefully — the button moves away after your FIRST click. Try to DOUBLE-CLICK fast before it escapes!";
     }
+});
 
-    #clueBtn {
-        top: 15px;
-        right: 15px;
-        width: 40px;
-        height: 40px;
-        font-size: 18px;
-    }
+targetButton.addEventListener('dblclick', (e) => {
+    // Prevent browser's default double-click selection
+    e.preventDefault();
+});
 
-    .stats {
-        gap: 10px;
-    }
-
-    .stat {
-        padding: 15px 18px;
-        min-width: 95px;
-    }
-
-    .stat span:last-child {
-        font-size: 1.5rem;
-    }
-
-    #gameArea {
-        min-height: 220px;
-    }
-
-    #targetButton {
-        padding: 18px 25px;
-        font-size: 1rem;
-    }
-
-    .modal-content {
-        padding: 25px 20px;
-    }
+// ===== Button Movement — Smoother & Better =====
+function startMovingAway() {
+    if (isRunningAway) return;
+    isRunningAway = true;
+    targetButton.classList.add('running-away');
+    
+    // Initial position
+    const areaRect = gameArea.getBoundingClientRect();
+    const btnRect = targetButton.getBoundingClientRect();
+    
+    moveButton(areaRect, btnRect);
+    
+    // Keep moving to random positions smoothly
+    moveInterval = setInterval(() => {
+        const areaRect = gameArea.getBoundingClientRect();
+        const btnRect = targetButton.getBoundingClientRect();
+        moveButton(areaRect, btnRect);
+    }, 600 + Math.random() * 400); // Random delay between moves
 }
+
+function moveButton(areaRect, btnRect) {
+    // Calculate safe boundaries
+    const maxX = areaRect.width - btnRect.width - 20;
+    const maxY = areaRect.height - btnRect.height - 20;
+    
+    // Random position within bounds
+    let newX = Math.random() * maxX;
+    let newY = Math.random() * maxY;
+    
+    // Sometimes move far away to be tricky
+    if (Math.random() > 0.6) {
+        const corners = [
+            { x: 10, y: 10 },
+            { x: maxX - 10, y: 10 },
+            { x: 10, y: maxY - 10 },
+            { x: maxX - 10, y: maxY - 10 }
+        ];
+        const corner = corners[Math.floor(Math.random() * corners.length)];
+        newX = corner.x;
+        newY = corner.y;
+    }
+    
+    targetButton.style.position = 'absolute';
+    targetButton.style.left = newX + 'px';
+    targetButton.style.top = newY + 'px';
+}
+
+function stopMovingAway() {
+    isRunningAway = false;
+    targetButton.classList.remove('running-away');
+    clearInterval(moveInterval);
+    targetButton.style.position = 'relative';
+    targetButton.style.left = '';
+    targetButton.style.top = '';
+}
+
+function resetClicks() {
+    clickCount = 0;
+    firstClickTime = 0;
+    stopMovingAway();
+}
+
+// ===== Win Handler =====
+function handleWin(timeDiff) {
+    wins++;
+    if (timeDiff < bestTime) {
+        bestTime = timeDiff;
+    }
+    updateStatsDisplay();
+    
+    messageEl.textContent = `🎉 DOUBLE CLICKED! ${timeDiff}ms`;
+    messageEl.className = 'success';
+    
+    // Stop movement immediately
+    stopMovingAway();
+    
+    // Show win modal
+    setTimeout(() => {
+        winModal.classList.remove('hidden');
+        winModal.classList.add('modal');
+    }, 300);
+}
+
+// ===== Play Again =====
+playAgainBtn.addEventListener('click', () => {
+    winModal.classList.add('hidden');
+    winModal.classList.remove('modal');
+    messageEl.textContent = 'Click the button...';
+    messageEl.className = '';
+    resetClicks();
+});
+
+// ===== Clue Modal =====
+clueBtn.addEventListener('click', () => {
+    clueModal.classList.remove('hidden');
+    clueModal.classList.add('modal');
+});
+
+closeModalBtn.addEventListener('click', () => {
+    clueModal.classList.add('hidden');
+    clueModal.classList.remove('modal');
+});
+
+// Close modal when clicking outside
+window.addEventListener('click', (e) => {
+    if (e.target === clueModal) {
+        clueModal.classList.add('hidden');
+        clueModal.classList.remove('modal');
+    }
+    if (e.target === winModal) {
+        winModal.classList.add('hidden');
+        winModal.classList.remove('modal');
+    }
+});
+
+// ===== Stats Display =====
+function updateStatsDisplay() {
+    attemptsEl.textContent = formatNumber(attempts);
+    winsEl.textContent = formatNumber(wins);
+    bestTimeEl.textContent = bestTime === Infinity ? '--' : bestTime + 'ms';
+}
+
+// Format large numbers nicely
+function formatNumber(num) {
+    if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
+    if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
+    return num.toString();
+}
+
+// ===== Keyboard Support =====
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+        clueModal.classList.add('hidden');
+        clueModal.classList.remove('modal');
+        winModal.classList.add('hidden');
+        winModal.classList.remove('modal');
+    }
+    if (e.key === 'Enter' && !winModal.classList.contains('hidden')) {
+        playAgainBtn.click();
+    }
+});
